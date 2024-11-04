@@ -1,7 +1,9 @@
+#Importamos las librerías necesarias :D 
 import sys
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QLabel, QMessageBox,
                              QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton)
 from PyQt5.QtGui import QPixmap
+import correo # Importamos el archivo donde se hizo la creación para enviar los correos :P
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
@@ -39,10 +41,10 @@ class VentanaPrincipal(QMainWindow):
 
         # Crear QLabel para la imagen y cargar la imagen
         self.imagen_label = QLabel()
-        pixmap = QPixmap("DodoPagos.png")  # Reemplaza con la ruta de tu imagen
+        pixmap = QPixmap("DodoPagos.png")  
         self.imagen_label.setPixmap(pixmap)
 
-        # Redimensionar la imagen (ajusta el tamaño aquí)
+        # Redimensionar la imagen
         self.imagen_label.setFixedSize(200, 200)  # Cambia los valores según el tamaño deseado
         self.imagen_label.setScaledContents(True)  # Ajusta la imagen al tamaño del QLabel
 
@@ -55,7 +57,7 @@ class VentanaPrincipal(QMainWindow):
         main_layout.addLayout(form_layout)
 
         # Crear los botones y añadirlos al layout principal
-        boton_guardar = QPushButton("Guardar recordatorio")
+        boton_guardar = QPushButton("Guardar y enviar recordatorio")
         boton_guardar.clicked.connect(self.mostrar_mensaje)
         self.clear_button = QPushButton("Limpiar Entradas")
         self.clear_button.clicked.connect(self.clear_inputs)
@@ -75,13 +77,22 @@ class VentanaPrincipal(QMainWindow):
         self.entrada4.clear()
 
     def mostrar_mensaje(self):
-    # Aquí puedes definir el mensaje que quieres mostrar
-       # Mostrar mensaje de guardado
+       #Creamos estas variables para obtener los datos ingresados en la ventana de PyQt5 :O
+        tipo_pago = self.entrada.text()
+        correo_destino = self.entrada2.text()
+        monto_pago = self.entrada3.text()
+        fecha_vencimiento = self.entrada4.text()
+
+        # Llamamos a la función de enviar recordatorio creada en el archivo "correo.py"
+        correo.enviar_recordatorio(tipo_pago, correo_destino, monto_pago, fecha_vencimiento)
+
+        # Mostramos el mensaje de guardado C:
         mensaje = QMessageBox()
         mensaje.setWindowTitle("Recordatorio Guardado")
-        mensaje.setText("El recordatorio ha sido guardado exitosamente.")
+        mensaje.setText("El recordatorio ha sido guardado exitosamente y el correo fue enviado.")
         mensaje.setIcon(QMessageBox.Information)
         mensaje.exec_()
+        self.close()#Se cierra la ventana D:
 
 # Ejecutar la aplicación
 app = QApplication(sys.argv)
