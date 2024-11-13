@@ -1,9 +1,47 @@
 #Importamos las librerías necesarias :D 
-import sys
-from PyQt5.QtWidgets import (QMainWindow, QApplication, QLabel, QMessageBox,
-                             QWidget, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton)
+import sqlite3
+import datetime
+import time
+import correo  # Importamos el archivo donde se hizo la creación para enviar los correos :P 
+import threading
+from PyQt5.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QLineEdit, QPushButton, QWidget, QLabel, QMessageBox
 from PyQt5.QtGui import QPixmap
-import correo # Importamos el archivo donde se hizo la creación para enviar los correos :P
+
+# Función para verificar y enviar correos automáticamente
+def verificar_y_enviar():
+    conn = sqlite3.connect('recordatorios.db')
+    c = conn.cursor()
+
+    # Obtener la fecha y hora actuales en el formato estándar YYYY-MM-DD HH:MM
+    now = datetime.datetime.now().strftime("%d-%m-%y %H:%M")
+    print(f"Fecha y hora actual: {now}")  # Mensaje de depuración para ver la fecha actual
+
+    # Seleccionar recordatorios que cumplan con la condición de fecha de vencimiento
+    c.execute("SELECT * FROM recordatorios WHERE fecha_vencimiento <= ?", (now,))
+    recordatorios = c.fetchall()
+
+    if not recordatorios:
+        print("No hay recordatorios para enviar en este momento.")
+    else:
+        for record in recordatorios:
+            tipo_pago, correo_destino, monto, fecha_vencimiento = record
+            print(f"Enviando correo para el recordatorio: {record}")  # Mensaje de depuración
+            
+            # Enviar el correo
+            correo.enviar_recordatorio(tipo_pago, correo_destino, monto, fecha_vencimiento)
+            
+            # Eliminar el recordatorio de la base de datos después de enviar
+            c.execute("DELETE FROM recordatorios WHERE correo_destino = ? AND fecha_vencimiento = ?", 
+                      (correo_destino, fecha_vencimiento))
+
+    conn.commit()
+    conn.close()
+
+# Función para ejecutar el bucle de verificación y envío
+def ejecutar_bucle():
+    while True:
+        verificar_y_enviar()  # Verificar y enviar correos si es necesario
+        time.sleep(60)  # Esperar 60 segundos antes de volver a ejecutar
 
 class VentanaPrincipal(QMainWindow):
     def __init__(self):
@@ -26,7 +64,7 @@ class VentanaPrincipal(QMainWindow):
         self.entrada2 = QLineEdit()
         self.monto = QLabel("Ingresa el monto del pago:")
         self.entrada3 = QLineEdit()
-        self.fecha = QLabel("Fecha de vencimiento:")
+        self.fecha = QLabel("Fecha de vencimiento (DD/MM/YYYY HH:MM):") 
         self.entrada4 = QLineEdit()
 
         # Añadir los labels y entradas al layout vertical
@@ -57,17 +95,51 @@ class VentanaPrincipal(QMainWindow):
         main_layout.addLayout(form_layout)
 
         # Crear los botones y añadirlos al layout principal
-        boton_guardar = QPushButton("Guardar y enviar recordatorio")
-        boton_guardar.clicked.connect(self.mostrar_mensaje)
+        boton_guardar = QPushButton("Guardar recordatorio")
+        boton_guardar.clicked.connect(self.guardar_en_db)
+        main_layout.addWidget(boton_guardar)
+
         self.clear_button = QPushButton("Limpiar Entradas")
         self.clear_button.clicked.connect(self.clear_inputs)
-        main_layout.addWidget(boton_guardar)
         main_layout.addWidget(self.clear_button)
 
         # Configurar el layout principal en la ventana central
         central_widget = QWidget()
         central_widget.setLayout(main_layout)
         self.setCentralWidget(central_widget)
+
+        # Crear la tabla en la base de datos si no existe
+        self.crear_tabla()
+
+        # Iniciar el bucle en segundo plano para verificar y enviar recordatorios
+        self.iniciar_bucle()
+
+    def crear_tabla(self):
+        conn = sqlite3.connect('recordatorios.db')
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS recordatorios 
+                     (tipo_pago TEXT, correo_destino TEXT, monto REAL, fecha_vencimiento TEXT)''')
+        conn.commit()
+        conn.close()
+
+    def guardar_en_db(self):
+        # Obtener los datos de las entradas de texto
+        tipo_pago = self.entrada.text()
+        correo_destino = self.entrada2.text()
+        monto_pago = self.entrada3.text()
+        fecha_vencimiento = self.entrada4.text()
+
+        # Conectar con la base de datos y guardar los datos
+        conn = sqlite3.connect('recordatorios.db')
+        c = conn.cursor()
+        c.execute("INSERT INTO recordatorios (tipo_pago, correo_destino, monto, fecha_vencimiento) VALUES (?, ?, ?, ?)",
+                  (tipo_pago, correo_destino, monto_pago, fecha_vencimiento))
+        conn.commit()
+        conn.close()
+
+        # Mostrar mensaje de éxito
+        QMessageBox.information(self, "Guardado", "Recordatorio guardado exitosamente en la base de datos.")
+        self.clear_inputs()
 
     def clear_inputs(self):
         # Limpiar el texto de todas las entradas
@@ -76,26 +148,15 @@ class VentanaPrincipal(QMainWindow):
         self.entrada3.clear()
         self.entrada4.clear()
 
-    def mostrar_mensaje(self):
-       #Creamos estas variables para obtener los datos ingresados en la ventana de PyQt5 :O
-        tipo_pago = self.entrada.text()
-        correo_destino = self.entrada2.text()
-        monto_pago = self.entrada3.text()
-        fecha_vencimiento = self.entrada4.text()
-
-        # Llamamos a la función de enviar recordatorio creada en el archivo "correo.py"
-        correo.enviar_recordatorio(tipo_pago, correo_destino, monto_pago, fecha_vencimiento)
-
-        # Mostramos el mensaje de guardado C:
-        mensaje = QMessageBox()
-        mensaje.setWindowTitle("Recordatorio Guardado")
-        mensaje.setText("El recordatorio ha sido guardado exitosamente y el correo fue enviado.")
-        mensaje.setIcon(QMessageBox.Information)
-        mensaje.exec_()
-        self.close()#Se cierra la ventana D:
+    # Función para iniciar el bucle de verificación en segundo plano
+    def iniciar_bucle(self):
+        # Iniciar el hilo que ejecutará el bucle de verificación y envío de correos
+        hilo_bucle = threading.Thread(target=ejecutar_bucle, daemon=True)
+        hilo_bucle.start()
 
 # Ejecutar la aplicación
-app = QApplication(sys.argv)
-ventana = VentanaPrincipal()
-ventana.show()
-app.exec()
+if __name__ == "__main__":
+    app = QApplication([])  # Crear la aplicación de Qt
+    ventana = VentanaPrincipal()  # Crear la ventana principal
+    ventana.show()  # Mostrar la ventana
+    app.exec_()  # Ejecutar el bucle de eventos de la aplicación
