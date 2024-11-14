@@ -12,27 +12,27 @@ def verificar_y_enviar():
     conn = sqlite3.connect('recordatorios.db')
     c = conn.cursor()
 
-    # Obtener la fecha y hora actuales en el formato estándar YYYY-MM-DD HH:MM
-    now = datetime.datetime.now().strftime("%d-%m-%y %H:%M")
+       # Obtener la fecha y hora actuales en el formato estándar YYYY-MM-DD HH:MM
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")  # Cambiado a YYYY-MM-DD HH:MM
     print(f"Fecha y hora actual: {now}")  # Mensaje de depuración para ver la fecha actual
 
-    # Seleccionar recordatorios que cumplan con la condición de fecha de vencimiento
-    c.execute("SELECT * FROM recordatorios WHERE fecha_vencimiento <= ?", (now,))
+    # Seleccionar recordatorios que cumplan con la condición de fecha de recordatorio
+    c.execute("SELECT * FROM recordatorios WHERE diaDrecordatorio <= ?", (now,))
+
     recordatorios = c.fetchall()
 
     if not recordatorios:
         print("No hay recordatorios para enviar en este momento.")
     else:
         for record in recordatorios:
-            tipo_pago, correo_destino, monto, fecha_vencimiento = record
+            tipo_pago, correo_destino, monto, fecha_vencimiento,diaDrecordatorio = record
             print(f"Enviando correo para el recordatorio: {record}")  # Mensaje de depuración
             
             # Enviar el correo
             correo.enviar_recordatorio(tipo_pago, correo_destino, monto, fecha_vencimiento)
             
-            # Eliminar el recordatorio de la base de datos después de enviar
-            c.execute("DELETE FROM recordatorios WHERE correo_destino = ? AND fecha_vencimiento = ?", 
-                      (correo_destino, fecha_vencimiento))
+          
+            
 
     conn.commit()
     conn.close()
@@ -64,8 +64,10 @@ class VentanaPrincipal(QMainWindow):
         self.entrada2 = QLineEdit()
         self.monto = QLabel("Ingresa el monto del pago:")
         self.entrada3 = QLineEdit()
-        self.fecha = QLabel("Fecha de vencimiento (DD/MM/YYYY HH:MM):") 
+        self.fecha = QLabel("Fecha de vencimiento:") 
         self.entrada4 = QLineEdit()
+        self.recordatorio = QLabel("Establecer dia y hora de recordatorio YYYY-MM-DD Y HH/MM:") 
+        self.entrada5 = QLineEdit()
 
         # Añadir los labels y entradas al layout vertical
         text_layout.addWidget(self.pago)
@@ -76,7 +78,8 @@ class VentanaPrincipal(QMainWindow):
         text_layout.addWidget(self.entrada3)
         text_layout.addWidget(self.fecha)
         text_layout.addWidget(self.entrada4)
-
+        text_layout.addWidget(self.recordatorio)
+        text_layout.addWidget(self.entrada5)
         # Crear QLabel para la imagen y cargar la imagen
         self.imagen_label = QLabel()
         pixmap = QPixmap("DodoPagos.png")  
@@ -114,13 +117,15 @@ class VentanaPrincipal(QMainWindow):
         # Iniciar el bucle en segundo plano para verificar y enviar recordatorios
         self.iniciar_bucle()
 
+    
     def crear_tabla(self):
-        conn = sqlite3.connect('recordatorios.db')
-        c = conn.cursor()
-        c.execute('''CREATE TABLE IF NOT EXISTS recordatorios 
-                     (tipo_pago TEXT, correo_destino TEXT, monto REAL, fecha_vencimiento TEXT)''')
-        conn.commit()
-        conn.close()
+     conn = sqlite3.connect('recordatorios.db')  # Conectar a la base de datos
+     c = conn.cursor()
+     c.execute('''CREATE TABLE IF NOT EXISTS recordatorios 
+                 (tipo_pago TEXT, correo_destino TEXT, monto REAL, fecha_vencimiento TEXT, diaDrecordatorio TEXT)''')
+     conn.commit()
+     conn.close()  # Cerrar la conexión después de ejecutar los cambios
+
 
     def guardar_en_db(self):
         # Obtener los datos de las entradas de texto
@@ -128,12 +133,14 @@ class VentanaPrincipal(QMainWindow):
         correo_destino = self.entrada2.text()
         monto_pago = self.entrada3.text()
         fecha_vencimiento = self.entrada4.text()
+        diaDrecordatorio = self.entrada5.text()
+
 
         # Conectar con la base de datos y guardar los datos
         conn = sqlite3.connect('recordatorios.db')
         c = conn.cursor()
-        c.execute("INSERT INTO recordatorios (tipo_pago, correo_destino, monto, fecha_vencimiento) VALUES (?, ?, ?, ?)",
-                  (tipo_pago, correo_destino, monto_pago, fecha_vencimiento))
+        c.execute("INSERT INTO recordatorios (tipo_pago, correo_destino, monto, fecha_vencimiento, diaDrecordatorio) VALUES (?, ?, ?, ?, ?) ",
+                  (tipo_pago, correo_destino, monto_pago, fecha_vencimiento, diaDrecordatorio))
         conn.commit()
         conn.close()
 
@@ -147,6 +154,7 @@ class VentanaPrincipal(QMainWindow):
         self.entrada2.clear()
         self.entrada3.clear()
         self.entrada4.clear()
+        self.entrada5.clear()
 
     # Función para iniciar el bucle de verificación en segundo plano
     def iniciar_bucle(self):

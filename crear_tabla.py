@@ -10,7 +10,8 @@ CREATE TABLE IF NOT EXISTS recordatorios (
     tipo_pago TEXT NOT NULL,
     correo_destino TEXT NOT NULL,
     monto REAL NOT NULL,
-    fecha_vencimiento TEXT NOT NULL
+    fecha_vencimiento TEXT NOT NULL,
+    diaDrecordatorio TEXT NOT NULL
 )
 ''')
 
