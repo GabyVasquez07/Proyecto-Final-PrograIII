@@ -12,27 +12,23 @@ def verificar_y_enviar():
     conn = sqlite3.connect('recordatorios.db')
     c = conn.cursor()
 
-       # Obtener la fecha y hora actuales en el formato estándar YYYY-MM-DD HH:MM
-    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")  # Cambiado a YYYY-MM-DD HH:MM
-    print(f"Fecha y hora actual: {now}")  # Mensaje de depuración para ver la fecha actual
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")  # Fecha y hora actual en el formato YYYY-MM-DD HH:MM
+    print(f"Fecha y hora actual: {now}")
 
-    # Seleccionar recordatorios que cumplan con la condición de fecha de recordatorio
-    c.execute("SELECT * FROM recordatorios WHERE diaDrecordatorio <= ?", (now,))
-
+    # Seleccionar recordatorios que no han sido enviados y que cumplen con la condición de recordatorio
+    c.execute("SELECT * FROM recordatorios WHERE diaDrecordatorio <= ? AND enviado = 0", (now,))
     recordatorios = c.fetchall()
 
     if not recordatorios:
         print("No hay recordatorios para enviar en este momento.")
     else:
         for record in recordatorios:
-            tipo_pago, correo_destino, monto, fecha_vencimiento,diaDrecordatorio = record
-            print(f"Enviando correo para el recordatorio: {record}")  # Mensaje de depuración
-            
-            # Enviar el correo
+            tipo_pago, correo_destino, monto, fecha_vencimiento, diaDrecordatorio, _ = record
+            print(f"Enviando correo para el recordatorio: {record}")
             correo.enviar_recordatorio(tipo_pago, correo_destino, monto, fecha_vencimiento)
-            
-          
-            
+
+            # Marcar el recordatorio como enviado
+            c.execute("UPDATE recordatorios SET enviado = 1 WHERE tipo_pago = ? AND correo_destino = ?", (tipo_pago, correo_destino))
 
     conn.commit()
     conn.close()
@@ -119,12 +115,13 @@ class VentanaPrincipal(QMainWindow):
 
     
     def crear_tabla(self):
-     conn = sqlite3.connect('recordatorios.db')  # Conectar a la base de datos
-     c = conn.cursor()
-     c.execute('''CREATE TABLE IF NOT EXISTS recordatorios 
-                 (tipo_pago TEXT, correo_destino TEXT, monto REAL, fecha_vencimiento TEXT, diaDrecordatorio TEXT)''')
-     conn.commit()
-     conn.close()  # Cerrar la conexión después de ejecutar los cambios
+        conn = sqlite3.connect('recordatorios.db')  # Conectar a la base de datos
+        c = conn.cursor()
+        c.execute('''CREATE TABLE IF NOT EXISTS recordatorios 
+                 (tipo_pago TEXT, correo_destino TEXT, monto REAL, fecha_vencimiento TEXT, diaDrecordatorio TEXT, enviado INTEGER DEFAULT 0)''')
+        conn.commit()
+        conn.close()  # Cerrar la conexión después de ejecutar los cambios
+
 
 
     def guardar_en_db(self):
