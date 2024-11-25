@@ -10,29 +10,37 @@ from calendar_api import add_event_to_calendar #Importamos la función de añadi
 import pytz #Importamos esta librería para tener un mejor cálculo de la zona horaria
 
 def verificar_y_enviar():
-    conn = sqlite3.connect('recordatorios.db')
+    print("Iniciando verificación de recordatorios...") 
+    conn = sqlite3.connect('recordatorios.db')#Iniciamos la conexión
     c = conn.cursor()
 
-    # Nos aseguramos de que la zona horaria sea consistente
-    tz = pytz.timezone('America/El_Salvador')  # Ajustamos según la zona horaria
-    now = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M")#Obtenemos la fecha de ahora
-    print(f"Fecha y hora actual: {now}") 
+    tz = pytz.timezone('America/El_Salvador')  #usamos pytz para usar la zona horaria de El Salvador
+    now = datetime.datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S") #Obtenemos la fecha actual
+    print(f"Fecha y hora actual: {now}")
 
-    c.execute("SELECT * FROM recordatorios WHERE diaDrecordatorio <= ? AND enviado = 0", (now,))
-    recordatorios = c.fetchall() #Revisamos si hay recordatorios para enviar
+    c.execute("SELECT * FROM recordatorios WHERE enviado = 0")
+    recordatorios = c.fetchall() #Vemos los recordatorios por enviar
 
-    if not recordatorios:
+    if not recordatorios: #Si no hay recordatorios...
         print("No hay recordatorios para enviar en este momento.")
     else:
-        for record in recordatorios:
+        for record in recordatorios: #y si sí hay...
             tipo_pago, correo_destino, monto, fecha_vencimiento, diaDrecordatorio, _ = record
-            print(f"Enviando correo para el recordatorio: {record}")
-            correo.enviar_recordatorio(tipo_pago, correo_destino, monto, fecha_vencimiento)
+            print(f"Recordatorio: {record}")
+           
+            diaDrecordatorio = diaDrecordatorio.replace("T", " ")
+            print(f"Fecha de recordatorio en la base de datos: {diaDrecordatorio}")
 
-            c.execute("UPDATE recordatorios SET enviado = 1 WHERE tipo_pago = ? AND correo_destino = ?", (tipo_pago, correo_destino))
+            if diaDrecordatorio <= now: #Si la fecha especificada ya pasó, enviamos el correo al instante
+                print(f"Enviando correo para el recordatorio: {record}")
+                correo.enviar_recordatorio(tipo_pago, correo_destino, monto, fecha_vencimiento)
+
+                c.execute("UPDATE recordatorios SET enviado = 1 WHERE tipo_pago = ? AND correo_destino = ?", (tipo_pago, correo_destino))
 
     conn.commit()
     conn.close()
+
+
 
 
 # Función para ejecutar el bucle de verificación y envío
@@ -136,13 +144,13 @@ class VentanaPrincipal(QMainWindow):
         diaDrecordatorio = self.entrada5.text().replace("/", ":")
     
         try:
-            # Convertir a objeto datetime en UTC
+            # Convertir a objeto datetime sin convertir a UTC
             fecha_obj = datetime.datetime.strptime(diaDrecordatorio, "%Y-%m-%d %H:%M")
-            fecha_obj_utc = fecha_obj.astimezone(datetime.timezone.utc)
-            diaDrecordatorio_iso = fecha_obj_utc.strftime("%Y-%m-%dT%H:%M:%SZ")
+            diaDrecordatorio_iso = fecha_obj.strftime("%Y-%m-%dT%H:%M:%S")
         except ValueError:
             QMessageBox.warning(self, "Error", "Formato incorrecto. Usa 'YYYY-MM-DD HH:MM'.")
             return
+
 
         # Guardar en la base de datos
         conn = sqlite3.connect('recordatorios.db')

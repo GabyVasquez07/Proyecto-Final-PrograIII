@@ -27,6 +27,8 @@ def verificar_y_enviar():
     conn.commit()
     conn.close()
 
+  
+
 
 # Ejecutar esta función cada 60 segundos (1 minuto) en un bucle infinito
 while True:
